@@ -6,10 +6,14 @@ import {yupResolver} from "@hookform/resolvers/yup"
 import { useForm } from 'react-hook-form'
 import { app } from '../base'
 import firebase from 'firebase'
+import { Link } from 'react-router-dom'
+import LinearProgress from '@mui/material/LinearProgress';
+
 
 const RegisterComp = () => {
     const [image , SetImage] = useState(img)
     const [avatar, setAvatar]=useState("")
+    const [percent , Setpercent ] = useState(0)
 
 
 
@@ -29,30 +33,27 @@ const RegisterComp = () => {
     } =useForm({
         resolver : yupResolver(Schema)
     })
-    const uploadImage = async (e) => {
-        const file = e.target.files[0];
-        const save = URL.createObjectURL(img);
-        SetImage(save);
-    
-        const fileRef = await app.storage().ref();
-        const storeRef = fileRef.child("avatar/" + file.name).put(file);
-    
-        storeRef.on(
-          firebase.storage.TaskEvent.STATE_CHANGED,
-          (snapShot) => {
-            const counter = (snapShot.bytesTransferred / snapShot.totalBytes) * 100;
-    
-            console.log(counter);
-          },
-          (err) => console.log(err.message),
-          () => {
-            storeRef.snapshot.ref.getDownloadURL().then((URL) => {
-              setAvatar(URL);
-              console.log(URL);
-            });
-          }
-        );
-      };
+    const UploadImage = async (e) =>{
+        const file = e.target.files[0]
+        const save = URL.createObjectURL(file)
+        SetImage(save)
+        
+        const fileRef =await app.storage().ref()
+        const storageRef  = fileRef.child("userImage/"+file.name).put(file)
+        storageRef.on(firebase.storage.TaskEvent.STATE_CHANGED, snapshot =>{
+            const counter = (snapshot.bytesTransferred/snapshot.totalBytes)*100
+            Setpercent(counter)
+            console.log(counter)
+
+        },(err)=> console.log(err),
+        ()=>{
+            storageRef.snapshot.ref.getDownloadURL().then(url =>{
+                setAvatar(url)
+                console.log(url)
+            })
+        }
+        )
+    }
 
       const Register = handleSubmit (async (val)=>{
         const {username,email,password}= val
@@ -71,15 +72,39 @@ const RegisterComp = () => {
         reset()
     })
 
+
+    const SiginGoogle = async () =>{
+        const provider = new firebase.auth.GoogleAuthProvider()
+        const saveUser = await app.auth().signInWithPopup(provider)
+        if (saveUser){
+            await app.firestore().collection("user").doc(saveUser.user.uid).set({
+                avatar:saveUser.user.photoURL,
+                username:saveUser.user.displayName,
+                email:saveUser.user.email,
+                createdBy: saveUser.user.uid,
+            })
+        }
+    }
+   
+
     return (
         <Container>
         <Wrapper>
                 <ImageHolder>
-                    <Image src={img}/>
-                    <ImageButton>Upload</ImageButton>
+                <Image src={image}/>
+                    {
+                        percent > 0 && percent < 99.9999999 ? (
+                            <div> style={{width:"500px"}}<LinearProgress variant="determinate" value={(Math.floor(percent))} />
+                            </div>
+
+                        ):null
+                    }
+                   
+                    <ImageButton htmlFor='pix'>Upload</ImageButton>
+                    <ImgInput id="pix" type="file" onChange={UploadImage}/>
                 </ImageHolder>
                 <Card>
-                    <Form>
+                    <Form onSubmit={Register}>
                         <Label>{errors.username?.message}</Label>
                         <Input
                         placeholder='name'
@@ -109,10 +134,13 @@ const RegisterComp = () => {
 
                         />
 
-                        <SubmitButton onClick={Register}>Submit</SubmitButton>
+                        <SubmitButton type="submit">Submit</SubmitButton>
+
+                        <SubmitButton2 onClick={SiginGoogle} >Sign in with Google</SubmitButton2>
+
                         <Text>
                             <Account>Already have an account,</Account>
-                            <Sign>Sign in</Sign>
+                            <Sign to="/Signin">Sign in</Sign>
                         </Text>
 
                     </Form>
@@ -164,7 +192,7 @@ border-radius: 100%;
 border: 2px solid black;
 `
 
-const ImageButton = styled.div`
+const ImageButton = styled.label`
 height: 40px;
 width: 100px;
 display: flex;
@@ -174,7 +202,9 @@ background-color: turquoise;
 border-radius: 8px;
 margin-top: 20px;
 `
-
+const ImgInput = styled.input`
+display: none;
+`
 const Card = styled.div`
 height: 400px;
 width: 400px;
@@ -206,12 +236,24 @@ width: 350px;
 background-color: white;
 margin-top: 10px;
 `
-const SubmitButton = styled.div`
+const SubmitButton = styled.button`
 height: 40px;
-width: 100px;
+width: 150px;
 margin-top: 10px;
 border: 3px;
 background-color: turquoise;
+color: white;
+border-radius: 2px;
+display: flex;
+justify-content: center;
+align-items: center;
+`
+const SubmitButton2 = styled.button`
+height: 40px;
+width: 150px;
+margin-top: 10px;
+border: 3px;
+background-color: red;
 color: white;
 border-radius: 2px;
 display: flex;
@@ -229,6 +271,8 @@ margin-top: 20px;
 const Account = styled.div`
 
 `
-const Sign = styled.div`
+const Sign = styled(Link)`
+text-decoration:none;
+color: red;
 
 `
